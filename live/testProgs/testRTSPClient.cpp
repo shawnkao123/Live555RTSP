@@ -23,6 +23,7 @@ along with this library; if not, write to the Free Software Foundation, Inc.,
 #include "liveMedia.hh"
 #include "BasicUsageEnvironment.hh"
 
+
 // Forward function definitions:
 
 // RTSP 'response handlers':
@@ -62,6 +63,9 @@ void usage(UsageEnvironment& env, char const* progName) {
 }
 
 char eventLoopWatchVariable = 0;
+
+int GOP = 0;
+char media[2][64];
 
 int main(int argc, char** argv) {
   // Begin by setting up our usage environment:
@@ -185,7 +189,7 @@ void openURL(UsageEnvironment& env, char const* progName, char const* rtspURL) {
   rtspClient->sendDescribeCommand(continueAfterDESCRIBE); 
 }
 
-
+char *tmp1, *tmp2;
 // Implementation of the RTSP 'response handlers':
 
 void continueAfterDESCRIBE(RTSPClient* rtspClient, int resultCode, char* resultString) {
@@ -201,6 +205,18 @@ void continueAfterDESCRIBE(RTSPClient* rtspClient, int resultCode, char* resultS
 
     char* const sdpDescription = resultString;
     env << *rtspClient << "Got a SDP description:\n" << sdpDescription << "\n";
+    
+    tmp1 = strstr(resultString, "m=");
+    tmp1 = strstr(tmp1, "a=");
+    tmp1 = strstr(tmp1, " ");
+    tmp2 = strstr(tmp1, "/");
+    strncpy(media[0], tmp1 + 1, (tmp2 - tmp1 - 1));
+    
+    tmp1 = strstr(tmp2, "m=");
+    tmp1 = strstr(tmp1, "a=");
+    tmp1 = strstr(tmp1, " ");
+    tmp2 = strstr(tmp1, "/");
+    strncpy(media[1], tmp1 + 1, (tmp2 - tmp1 - 1));
 
     // Create a media session object from this SDP description:
     scs.session = MediaSession::createNew(env, sdpDescription);
@@ -227,7 +243,7 @@ void continueAfterDESCRIBE(RTSPClient* rtspClient, int resultCode, char* resultS
 
 // By default, we request that the server stream its data using RTP/UDP.
 // If, instead, you want to request that the server stream via RTP-over-TCP, change the following to True:
-#define REQUEST_STREAMING_OVER_TCP False
+#define REQUEST_STREAMING_OVER_TCP True
 
 void setupNextSubsession(RTSPClient* rtspClient) {
   UsageEnvironment& env = rtspClient->envir(); // alias
@@ -271,7 +287,7 @@ void continueAfterSETUP(RTSPClient* rtspClient, int resultCode, char* resultStri
     if (resultCode != 0) {
       env << *rtspClient << "Failed to set up the \"" << *scs.subsession << "\" subsession: " << resultString << "\n";
       break;
-    }
+    }    	
 
     env << *rtspClient << "Set up the \"" << *scs.subsession << "\" subsession (";
     if (scs.subsession->rtcpIsMuxed()) {
@@ -286,6 +302,7 @@ void continueAfterSETUP(RTSPClient* rtspClient, int resultCode, char* resultStri
     // after we've sent a RTSP "PLAY" command.)
 
     scs.subsession->sink = DummySink::createNew(env, *scs.subsession, rtspClient->url());
+    
       // perhaps use your own custom "MediaSink" subclass instead
     if (scs.subsession->sink == NULL) {
       env << *rtspClient << "Failed to create a data sink for the \"" << *scs.subsession
@@ -476,7 +493,7 @@ StreamClientState::~StreamClientState() {
 
 // Even though we're not going to be doing anything with the incoming data, we still need to receive it.
 // Define the size of the buffer that we'll use:
-#define DUMMY_SINK_RECEIVE_BUFFER_SIZE 100000
+#define DUMMY_SINK_RECEIVE_BUFFER_SIZE 1000000
 
 DummySink* DummySink::createNew(UsageEnvironment& env, MediaSubsession& subsession, char const* streamId) {
   return new DummySink(env, subsession, streamId);
@@ -496,12 +513,14 @@ DummySink::~DummySink() {
 
 void DummySink::afterGettingFrame(void* clientData, unsigned frameSize, unsigned numTruncatedBytes,
 				  struct timeval presentationTime, unsigned durationInMicroseconds) {
+				  	
   DummySink* sink = (DummySink*)clientData;
   sink->afterGettingFrame(frameSize, numTruncatedBytes, presentationTime, durationInMicroseconds);
 }
 
 // If you don't want to see debugging output for each received frame, then comment out the following line:
-#define DEBUG_PRINT_EACH_RECEIVED_FRAME 1
+#define DEBUG_PRINT_EACH_RECEIVED_FRAME 0
+
 
 void DummySink::afterGettingFrame(unsigned frameSize, unsigned numTruncatedBytes,
 				  struct timeval presentationTime, unsigned /*durationInMicroseconds*/) {
@@ -521,7 +540,17 @@ void DummySink::afterGettingFrame(unsigned frameSize, unsigned numTruncatedBytes
 #endif
   envir() << "\n";
 #endif
-  
+
+  if(!strcmp(fSubsession.mediumName(), "video"))
+  {
+  	if (fReceiveBuffer[0] == 0x65)
+  	{
+  		envir() << media[0] << " + " << media[1]<< " GOP: " << GOP << "\n";
+  		GOP = 0;
+  	}
+  		GOP++;
+  }
+
   // Then continue, to request the next frame of data:
   continuePlaying();
 }
