@@ -8,6 +8,8 @@ cd live
 
 sudo ./configure
 
+sudo ./genMakefiles linux
+
 sudo make
 
 cd testProgs
