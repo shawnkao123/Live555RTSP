@@ -10,4 +10,6 @@ sudo ./configure
 
 sudo make
 
-cd test
+cd testProgs
+
+sudo ./testRTSPClient rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mov
