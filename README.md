@@ -6,4 +6,8 @@ sudo apt-get install openssl
 
 cd live
 
-make
+sudo ./configure
+
+sudo make
+
+cd test
